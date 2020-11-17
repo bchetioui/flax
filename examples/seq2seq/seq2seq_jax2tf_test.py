@@ -20,6 +20,7 @@ import functools
 from absl.testing import absltest
 
 from flax import nn
+from importlib import reload
 import train
 from flax.testing import jax2tf_test_util
 
@@ -29,7 +30,10 @@ from jax import test_util as jtu
 from jax.experimental import jax2tf
 import jax.numpy as jnp
 
+from jax.config import config
 import numpy as np
+
+config.parse_flags_with_absl()
 
 DEFAULT_ATOL = 5e-6
 
@@ -86,6 +90,10 @@ class Jax2TfTest(jax2tf_test_util.JaxToTfTestCase):
         jax2tf.convert(_train_one_step)(batch),
         atol=DEFAULT_ATOL)
 
+  def test_perf_single_train_step(self):
+    #reload(train)
+    batch = train.get_batch(128)
+    self.ConvertAndBenchmark(_train_one_step, batch, name='seq2seq')
 
 if __name__ == '__main__':
   # Parse absl flags test_srcdir and test_tmpdir.

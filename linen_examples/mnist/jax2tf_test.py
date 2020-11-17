@@ -18,8 +18,10 @@
 import functools
 
 from absl.testing import absltest
-
+from importlib import reload
 import mnist_lib
+reload(mnist_lib) # hack
+
 from flax.testing import jax2tf_test_util
 
 import jax
@@ -56,8 +58,7 @@ class Jax2TfTest(jax2tf_test_util.JaxToTfTestCase):
   def setUp(self):
     super().setUp()
     # Load mock data so that dataset is not downloaded over the network.
-    with tfds.testing.mock_data(num_examples=BATCH_SIZE, data_dir=data_dir):
-      self._train_ds, self._test_ds = mnist_lib.get_datasets()
+    self._train_ds, self._test_ds = mnist_lib.get_datasets()
 
   def test_single_train_step(self):
     np.testing.assert_allclose(
@@ -71,6 +72,8 @@ class Jax2TfTest(jax2tf_test_util.JaxToTfTestCase):
     jax.tree_multimap(assert_allclose, _eval(self._test_ds),
                       jax2tf.convert(_eval)(self._test_ds))
 
+  def test_perf_single_train_step(self):
+    self.ConvertAndBenchmark(_single_train_step, self._train_ds, name='mnist')
 
 if __name__ == '__main__':
   # Parse absl flags test_srcdir and test_tmpdir.

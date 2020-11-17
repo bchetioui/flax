@@ -19,8 +19,9 @@ from absl.testing import absltest
 
 from flax import nn
 from flax import optim
-import train
-from train import GNN
+from importlib import reload
+import graph_train
+from graph_train import GNN
 from flax.testing import jax2tf_test_util
 
 import jax
@@ -28,7 +29,10 @@ from jax import random
 from jax import test_util as jtu
 from jax.experimental import jax2tf
 
+from jax.config import config
 import numpy as np
+
+config.parse_flags_with_absl()
 
 DEFAULT_ATOL = 1e-6
 
@@ -43,7 +47,7 @@ def _create_model(node_feats, sources, targets):
 def _single_train_step(node_feats, sources, targets):
   model = _create_model(node_feats, sources, targets)
   optimizer = optim.Adam(learning_rate=0.01).create(model)
-  _, loss = train.train_step(
+  _, loss = graph_train.train_step(
       optimizer=optimizer,
       node_feats=node_feats,
       sources=sources,
@@ -53,7 +57,7 @@ def _single_train_step(node_feats, sources, targets):
 
 def _eval(node_feats, node_labels, sources, targets):
   model = _create_model(node_feats, sources, targets)
-  return train.eval_step(model, node_feats, sources, targets, node_labels)
+  return graph_train.eval_step(model, node_feats, sources, targets, node_labels)
 
 
 class Jax2TfTest(jax2tf_test_util.JaxToTfTestCase):
@@ -65,16 +69,25 @@ class Jax2TfTest(jax2tf_test_util.JaxToTfTestCase):
     # (0) 1 - 2 (1)
     edge_list = [(0, 0), (1, 2), (2, 0)]
     node_labels = [0, 0, 1]
-    node_feats, node_labels, sources, targets = train.create_graph_data(
+    node_feats, node_labels, sources, targets = graph_train.create_graph_data(
         edge_list=edge_list, node_labels=node_labels)
     np.testing.assert_allclose(
         _single_train_step(node_feats, sources, targets),
         jax2tf.convert(_single_train_step)(node_feats, sources, targets),
         atol=DEFAULT_ATOL)
 
+  def test_perf_single_train_step(self):
+    #reload(train)
+    edge_list = [(0, 0), (1, 2), (2, 0)]
+    node_labels = [0, 0, 1]
+    node_feats, node_labels, sources, targets = graph_train.create_graph_data(
+        edge_list=edge_list, node_labels=node_labels)
+    self.ConvertAndBenchmark(_single_train_step, node_feats, sources, targets,
+                             name='graph')
+
   def test_eval(self):
     # Get Zachary's karate club graph dataset.
-    node_feats, node_labels, sources, targets = train.get_karate_club_data()
+    node_feats, node_labels, sources, targets = graph_train.get_karate_club_data()
     np.testing.assert_allclose(
         _eval(node_feats, node_labels, sources, targets),
         jax2tf.convert(_eval)(node_feats, node_labels, sources, targets),
